@@ -1,0 +1,164 @@
+---
+title: "Gapminder - Modeling the relationship between GDP and life expectancy "
+author: "Courtney Kennedy, Tanushri Roy, Q Jiang, Abigal Castro, Aditi Jain"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+Instructions: Divide the task among yourself. Each team member should contribute to at least one part of the assignment. The person whose name starts last in the alphabetic order shares screen and compiles the Rmd file. All team members should submit the Rmd and pdf files.  
+
+The gapminder data summarizes the progression of countries over time, looking at statistics like life expectancy and GDP. Use RDS 25.2 as starting point and answer the following question: How well does GDP predict life expectancy in each country and continent? 
+
+## 1. Use Linear modeling 
+Follow the steps in RDS 25.2
+```{r}
+library(tidyverse)
+library(modelr)
+library(gapminder)
+```
+
+```{r}
+gapminder %>%
+  ggplot(aes(gdpPercap, lifeExp, group = country, color = continent)) +
+  geom_line(alpha = 1/3)
+```
+```{r}
+by_country <- gapminder %>% 
+  group_by(country, continent) %>% 
+  nest()
+
+country_model <- function(df) {
+  lm(lifeExp ~ gdpPercap, data = df)
+}
+
+models <- map(by_country$data, country_model)
+
+by_country <- by_country %>% 
+  mutate(model = map(data, country_model))
+
+by_country %>% 
+  arrange(continent, country)
+
+by_country <- by_country %>% 
+  mutate(
+    resids = map2(data, model, add_residuals)
+  )
+
+resids <- unnest(by_country, resids)
+
+resids %>% 
+  ggplot(aes(gdpPercap, resid, group = country)) +
+    geom_line(alpha = 1 / 3) + 
+    facet_wrap(~continent)
+
+
+```
+
+## 2. Try different model families :
+(See RDS 23.6)
+
+### 2.1 Generalized linear models
+```{r}
+
+by_country <- gapminder %>% 
+  group_by(country, continent) %>% 
+  nest()
+
+country_model <- function(df) {
+  stats::glm(lifeExp ~ gdpPercap, data = df)
+}
+
+models <- map(by_country$data, country_model)
+
+by_country <- by_country %>% 
+  mutate(model = map(data, country_model))
+
+by_country %>% 
+  arrange(continent, country)
+
+by_country <- by_country %>% 
+  mutate(
+    resids = map2(data, model, add_residuals)
+  )
+
+resids <- unnest(by_country, resids)
+
+resids %>% 
+  ggplot(aes(gdpPercap, resid, group = country)) +
+    geom_line(alpha = 1 / 3) + 
+    facet_wrap(~continent)
+```
+
+
+### 2.4 Robust linear models
+```{r}
+by_country <- gapminder %>% 
+  group_by(country, continent) %>% 
+  nest()
+
+country_model <- function(df) {
+  MASS::rlm(lifeExp ~ gdpPercap, data = df)
+}
+
+models <- map(by_country$data, country_model)
+
+by_country <- by_country %>% 
+  mutate(model = map(data, country_model))
+
+by_country %>% 
+  arrange(continent, country)
+
+by_country <- by_country %>% 
+  mutate(
+    resids = map2(data, model, add_residuals)
+  )
+
+resids <- unnest(by_country, resids)
+
+resids %>% 
+  ggplot(aes(gdpPercap, resid, group = country)) +
+    geom_line(alpha = 1 / 3) + 
+    facet_wrap(~continent)
+```
+
+
+### 2.5 Trees  
+
+```{r}
+by_country <- gapminder %>% 
+  group_by(country, continent) %>% 
+  nest()
+
+country_model <- function(df) {
+  rpart::rpart(lifeExp ~ gdpPercap, data = df)
+}
+
+models <- map(by_country$data, country_model)
+
+by_country <- by_country %>% 
+  mutate(model = map(data, country_model))
+
+by_country %>% 
+  arrange(continent, country)
+
+by_country <- by_country %>% 
+  mutate(
+    resids = map2(data, model, add_residuals)
+  )
+
+resids <- unnest(by_country, resids)
+
+resids %>% 
+  ggplot(aes(gdpPercap, resid, group = country)) +
+    geom_line(alpha = 1 / 3) + 
+    facet_wrap(~continent)
+```
+
+
+
+## 3. Discuss which family performs best. How do you determine the performance? 
+
+Relatively none of these families perform well.  Since their residuals are all large and have patterns it's fair to say that none of the families are a good fit for the data.  If any of the residual patterns had be relatively close to a horizontal line then we could say it was a good fit, however in all families that was not the case.  This is due to the fact that the trend among life expectancy and gdpPercap is not linear but rather, another type such as exponential. 
+
